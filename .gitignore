@@ -1,5 +1,7 @@
 # Local project notes
 instructions.txt
+PLAN.md
+MILESTONE_1_REVIEW.md
 
 # Python bytecode and caches
 __pycache__/

@@ -40,9 +40,66 @@ types.
 
 ## Project status
 
-Luca is currently in its initial bootstrap stage. The principles above describe
-the intended direction of the framework; the implementation and its public API
-are still to be developed.
+Luca is in early development. The first core slice currently provides:
+
+- Validated models for accounts, journals, monetary values, journal lines, and
+  journal entries.
+- Double-entry validation that balances debits and credits independently for
+  each currency.
+- Stable record identifiers, timezone-aware timestamps, descriptive generated
+  schemas, and JSON serialization.
+- Storage-neutral CRUD contracts with an in-memory implementation suitable for
+  tests and lightweight workflows.
+
+Database persistence, reporting, governance, the web interface, and the CLI
+remain planned capabilities rather than stable public APIs.
+
+## Core model example
+
+```python
+from datetime import date
+from decimal import Decimal
+from uuid import uuid4
+
+from luca import EntrySide, JournalEntry, JournalLine, Money
+
+cash_account_id = uuid4()
+revenue_account_id = uuid4()
+
+entry = JournalEntry(
+    journal_id=uuid4(),
+    transaction_date=date(2026, 8, 22),
+    description="Record a cash sale",
+    lines=(
+        JournalLine(
+            account_id=cash_account_id,
+            side=EntrySide.DEBIT,
+            amount=Money(amount=Decimal("125.00"), currency="USD"),
+        ),
+        JournalLine(
+            account_id=revenue_account_id,
+            side=EntrySide.CREDIT,
+            amount=Money(amount=Decimal("125.00"), currency="USD"),
+        ),
+    ),
+)
+```
+
+Unbalanced entries, zero-value lines, invalid currency codes, unknown fields,
+and naive audit timestamps are rejected during validation.
+
+## Development
+
+Install the locked development environment and run the quality checks with
+`uv`:
+
+```console
+uv sync
+uv run ruff check .
+uv run mypy src
+uv run pytest
+uv build
+```
 
 ## License
 
