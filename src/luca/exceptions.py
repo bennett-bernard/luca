@@ -25,6 +25,17 @@ class DuplicateRecordError(LucaError):
         super().__init__(f"{record_type} record {record_id} already exists")
 
 
+class DuplicateCodeError(LucaError):
+    """Raised when a coded record would duplicate an existing code."""
+
+    def __init__(self, record_type: str, code: str) -> None:
+        self.record_type = record_type
+        self.code = code
+        super().__init__(
+            f"{record_type} code {code!r} conflicts with an existing record"
+        )
+
+
 class InvalidUpdateError(LucaError):
     """Raised when an update attempts to change Luca-managed fields."""
 

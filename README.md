@@ -47,13 +47,17 @@ Luca is in early development. The first core slice currently provides:
   journal entries.
 - Double-entry validation that balances debits and credits independently for
   each currency.
-- Stable record identifiers, timezone-aware timestamps, descriptive generated
+- Stable record identifiers, UTC-normalized timestamps, descriptive generated
   schemas, and JSON serialization.
 - Storage-neutral CRUD contracts with an in-memory implementation suitable for
   tests and lightweight workflows.
+- Account and journal services that enforce case-insensitive code uniqueness.
+- Service-level hard deletion that records immutable audit events with deleted
+  record snapshots.
 
-Database persistence, reporting, governance, the web interface, and the CLI
-remain planned capabilities rather than stable public APIs.
+Database persistence, durable audit storage, reporting, user governance, the
+web interface, and the CLI remain planned capabilities rather than stable
+public APIs.
 
 ## Core model example
 
@@ -66,18 +70,22 @@ from luca import EntrySide, JournalEntry, JournalLine, Money
 
 cash_account_id = uuid4()
 revenue_account_id = uuid4()
+entry_id = uuid4()
 
 entry = JournalEntry(
+    id=entry_id,
     journal_id=uuid4(),
     transaction_date=date(2026, 8, 22),
     description="Record a cash sale",
     lines=(
         JournalLine(
+            journal_entry_id=entry_id,
             account_id=cash_account_id,
             side=EntrySide.DEBIT,
             amount=Money(amount=Decimal("125.00"), currency="USD"),
         ),
         JournalLine(
+            journal_entry_id=entry_id,
             account_id=revenue_account_id,
             side=EntrySide.CREDIT,
             amount=Money(amount=Decimal("125.00"), currency="USD"),
@@ -88,6 +96,9 @@ entry = JournalEntry(
 
 Unbalanced entries, zero-value lines, invalid currency codes, unknown fields,
 and naive audit timestamps are rejected during validation.
+
+More runnable walkthroughs are available in [`examples/`](examples/README.md),
+including validation failures, audited deletion, and model subclassing.
 
 ## Development
 

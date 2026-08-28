@@ -103,6 +103,9 @@ class JournalLine(LucaModel):
         default_factory=uuid4,
         description="Stable unique identifier for this line within its journal entry.",
     )
+    journal_entry_id: UUID = Field(
+        description="Identifier of the journal entry that owns this line."
+    )
     account_id: UUID = Field(
         description="Identifier of the account affected by this journal line."
     )
@@ -178,6 +181,14 @@ class JournalEntry(BaseTransaction):
     @model_validator(mode="after")
     def validate_lines(self) -> Self:
         """Require unique lines and balanced debits and credits per currency."""
+
+        mismatched_parent_ids = [
+            line.id for line in self.lines if line.journal_entry_id != self.id
+        ]
+        if mismatched_parent_ids:
+            raise ValueError(
+                "every journal line must reference its owning journal entry"
+            )
 
         line_ids = [line.id for line in self.lines]
         if len(line_ids) != len(set(line_ids)):

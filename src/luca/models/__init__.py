@@ -9,12 +9,15 @@ from luca.models.accounting import (
     JournalEntry,
     JournalLine,
 )
+from luca.models.audit import AuditAction, AuditEvent
 from luca.models.base import LucaModel, RecordModel
 from luca.models.money import CurrencyCode, Money
 
 __all__ = [
     "Account",
     "AccountType",
+    "AuditAction",
+    "AuditEvent",
     "BaseTransaction",
     "CurrencyCode",
     "EntrySide",

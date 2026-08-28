@@ -1,16 +1,28 @@
 """Application-level CRUD operations for Luca records."""
 
+from collections.abc import Callable
+from datetime import datetime
 from uuid import UUID
 
-from luca.models.base import RecordModel
+from luca.models.audit import AuditAction, AuditEvent
+from luca.models.base import RecordModel, utc_now
+from luca.repositories.audit import AuditLog, InMemoryAuditLog
 from luca.repositories.base import RecordChanges, Repository
 
 
 class CrudService[RecordT: RecordModel]:
     """Expose consistent record operations independently of storage technology."""
 
-    def __init__(self, repository: Repository[RecordT]) -> None:
+    def __init__(
+        self,
+        repository: Repository[RecordT],
+        *,
+        audit_log: AuditLog | None = None,
+        clock: Callable[[], datetime] = utc_now,
+    ) -> None:
         self._repository = repository
+        self._audit_log = audit_log if audit_log is not None else InMemoryAuditLog()
+        self._clock = clock
 
     def create(self, record: RecordT) -> RecordT:
         """Create a validated record."""
@@ -32,7 +44,23 @@ class CrudService[RecordT: RecordModel]:
 
         return self._repository.update(record_id, changes)
 
-    def delete(self, record_id: UUID) -> RecordT:
-        """Delete and return a record."""
+    def delete(self, record_id: UUID, *, actor: str | None = None) -> RecordT:
+        """Delete a record and append an immutable audit event."""
 
-        return self._repository.delete(record_id)
+        existing = self.retrieve(record_id)
+        event = AuditEvent(
+            occurred_at=self._clock(),
+            action=AuditAction.DELETE,
+            record_type=type(existing).__name__,
+            record_id=existing.id,
+            actor=actor,
+            snapshot=existing.model_dump(mode="json"),
+        )
+        deleted = self._repository.delete(record_id)
+        self._audit_log.append(event)
+        return deleted
+
+    def list_audit_events(self) -> tuple[AuditEvent, ...]:
+        """List audit events visible through this service's audit log."""
+
+        return self._audit_log.list()

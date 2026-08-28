@@ -10,6 +10,7 @@ from pydantic import (
     ConfigDict,
     Field,
     JsonValue,
+    field_validator,
     model_validator,
 )
 
@@ -18,6 +19,12 @@ def utc_now() -> datetime:
     """Return the current time as a timezone-aware UTC datetime."""
 
     return datetime.now(UTC)
+
+
+def normalize_to_utc(value: datetime) -> datetime:
+    """Return a timezone-aware datetime normalized to UTC."""
+
+    return value.astimezone(UTC)
 
 
 class LucaModel(BaseModel):
@@ -61,6 +68,13 @@ class RecordModel(LucaModel):
             "changing Luca's core schema."
         ),
     )
+
+    @field_validator("created_at", "updated_at")
+    @classmethod
+    def normalize_audit_timestamps(cls, value: datetime) -> datetime:
+        """Store every supplied audit timestamp in UTC."""
+
+        return normalize_to_utc(value)
 
     @model_validator(mode="after")
     def validate_timestamp_order(self) -> Self:

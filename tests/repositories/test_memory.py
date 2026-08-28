@@ -72,6 +72,22 @@ def test_repository_returns_defensive_copies() -> None:
     assert repository.retrieve(account.id).metadata == {"source": {"system": "test"}}
 
 
+def test_repository_preserves_declared_subclass_fields() -> None:
+    class ProjectAccount(Account):
+        project_code: str
+
+    repository = InMemoryRepository(ProjectAccount)
+    account = ProjectAccount(
+        code="1000",
+        name="Project Cash",
+        account_type=AccountType.ASSET,
+        project_code="LUCA",
+    )
+
+    assert repository.create(account).project_code == "LUCA"
+    assert repository.retrieve(account.id) == account
+
+
 def test_create_rejects_duplicate_identifiers() -> None:
     repository = make_repository()
     record_id = uuid4()

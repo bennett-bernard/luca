@@ -1,6 +1,6 @@
 """Tests for Luca's core accounting data model."""
 
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta, timezone
 from decimal import Decimal
 from uuid import UUID, uuid4
 
@@ -20,6 +20,7 @@ from luca import (
 DEBIT_ACCOUNT_ID = UUID("00000000-0000-0000-0000-000000000001")
 CREDIT_ACCOUNT_ID = UUID("00000000-0000-0000-0000-000000000002")
 JOURNAL_ID = UUID("00000000-0000-0000-0000-000000000003")
+ENTRY_ID = UUID("00000000-0000-0000-0000-000000000004")
 
 
 def make_line(
@@ -28,11 +29,13 @@ def make_line(
     currency: str = "USD",
     *,
     line_id: UUID | None = None,
+    journal_entry_id: UUID = ENTRY_ID,
 ) -> JournalLine:
     """Build a representative journal line for tests."""
 
     account_id = DEBIT_ACCOUNT_ID if side is EntrySide.DEBIT else CREDIT_ACCOUNT_ID
     values: dict[str, object] = {
+        "journal_entry_id": journal_entry_id,
         "account_id": account_id,
         "side": side,
         "amount": Money(amount=Decimal(amount), currency=currency),
@@ -42,10 +45,11 @@ def make_line(
     return JournalLine.model_validate(values)
 
 
-def make_entry(*lines: JournalLine) -> JournalEntry:
+def make_entry(*lines: JournalLine, entry_id: UUID = ENTRY_ID) -> JournalEntry:
     """Build a journal entry from the supplied lines."""
 
     return JournalEntry(
+        id=entry_id,
         journal_id=JOURNAL_ID,
         transaction_date=date(2026, 8, 22),
         description="Record a cash sale",
@@ -70,6 +74,7 @@ def test_money_rejects_invalid_currency_codes(currency: object) -> None:
 def test_journal_line_requires_a_positive_amount() -> None:
     with pytest.raises(ValidationError, match="greater than zero"):
         JournalLine(
+            journal_entry_id=ENTRY_ID,
             account_id=DEBIT_ACCOUNT_ID,
             side=EntrySide.DEBIT,
             amount=Money(amount="0", currency="USD"),
@@ -80,6 +85,7 @@ def test_journal_entry_accepts_balanced_lines() -> None:
     entry = make_entry()
 
     assert len(entry.lines) == 2
+    assert entry.lines[0].journal_entry_id == entry.id
     assert entry.lines[0].side is EntrySide.DEBIT
     assert entry.lines[1].side is EntrySide.CREDIT
 
@@ -100,6 +106,14 @@ def test_journal_entry_rejects_unbalanced_lines() -> None:
         make_entry(
             make_line(EntrySide.DEBIT, "100.00"),
             make_line(EntrySide.CREDIT, "99.99"),
+        )
+
+
+def test_journal_entry_rejects_lines_from_another_parent() -> None:
+    with pytest.raises(ValidationError, match="owning journal entry"):
+        make_entry(
+            make_line(EntrySide.DEBIT, journal_entry_id=uuid4()),
+            make_line(EntrySide.CREDIT),
         )
 
 
@@ -133,6 +147,22 @@ def test_records_require_ordered_timezone_aware_timestamps() -> None:
         )
 
 
+def test_records_normalize_aware_timestamps_to_utc() -> None:
+    eastern = timezone(timedelta(hours=-4))
+    account = Account(
+        code="1000",
+        name="Cash",
+        account_type=AccountType.ASSET,
+        created_at=datetime(2026, 8, 22, 8, 0, tzinfo=eastern),
+        updated_at=datetime(2026, 8, 22, 9, 0, tzinfo=eastern),
+    )
+
+    assert account.created_at == datetime(2026, 8, 22, 12, 0, tzinfo=UTC)
+    assert account.updated_at == datetime(2026, 8, 22, 13, 0, tzinfo=UTC)
+    assert account.created_at.tzinfo is UTC
+    assert account.updated_at.tzinfo is UTC
+
+
 def test_models_reject_unknown_fields() -> None:
     with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
         Account.model_validate(
@@ -143,6 +173,20 @@ def test_models_reject_unknown_fields() -> None:
                 "unexpected": True,
             }
         )
+
+
+def test_subclasses_can_declare_additional_fields() -> None:
+    class ProjectAccount(Account):
+        project_code: str
+
+    account = ProjectAccount(
+        code="1000",
+        name="Cash",
+        account_type=AccountType.ASSET,
+        project_code="LUCA",
+    )
+
+    assert account.project_code == "LUCA"
 
 
 def test_journal_entry_round_trips_through_json() -> None:
