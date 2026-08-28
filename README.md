@@ -1,7 +1,8 @@
-# Luca
+# Luca Core
 
-Luca is an open-source framework for representing accounting transactions in a
-minimal form while enforcing strong data validation.
+Luca Core is the foundational library for the open-source Luca accounting
+framework. It represents accounting transactions in a minimal form while
+enforcing strong data validation.
 
 The project aims to provide low-level scaffolding for defining basic
 transactions using the lowest common denominator of accounting data. Its
